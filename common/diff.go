@@ -52,14 +52,6 @@ func getProfile(filename string, enabledMD5 bool) (*Profile,error) {
 }
 
 func getRopo() (files []string, err error) {
-	pathBytes, err := exec.Command(
-		"git", "rev-parse", "--show-toplevel").Output()
-		if err != nil { return nil, err }
-	path := strings.TrimSuffix(string(pathBytes),"\n")
-
-	err = os.Chdir(path)
-		if err != nil { return nil, err }
-
 	cmd := exec.Command("git", "ls-files")
 	r,err := cmd.StdoutPipe()
 		if err != nil { return nil, err }
@@ -77,12 +69,7 @@ func getRopo() (files []string, err error) {
 	return _files, nil
 }
 
-func getFiles(path string) (files []string, err error) {
-	err = os.MkdirAll(path, os.ModePerm)
-		if err != nil { return nil, err }
-	err = os.Chdir(path)
-		if err != nil { return nil, err }
-
+func getFiles() (files []string, err error) {
 	cmd := exec.Command("find", ".", "-type", "f")
 	r,err := cmd.StdoutPipe()
 		if err != nil { return nil, err }
@@ -111,15 +98,33 @@ func getIndex(files []string, enabledMD5 bool) (Index,error) {
 	return index, nil
 }
 
+func ChdirRopoRoot() error {
+	pathBytes, err := exec.Command(
+		"git", "rev-parse", "--show-toplevel").Output()
+		if err != nil { return err }
+	path := strings.TrimSuffix(string(pathBytes),"\n")
+
+	err = os.Chdir(path)
+		if err != nil { return err }
+	return nil
+}
+
 func GetRopoIndex(enabledMD5 bool) (Index, error) {
 	files, err := getRopo()
 		if err != nil { return nil, err }
 	return getIndex(files, enabledMD5)
 }
 
-func GetDiff(path string, enabledMD5 bool, src Index) (*Updates, error) {
-	files, err := getFiles(path)
-		if err != nil { return nil, err }
+func MkdirAndChdir(path string) error {
+	err := os.MkdirAll(path, os.ModePerm)
+		if err != nil { return err }
+	err = os.Chdir(path)
+		if err != nil { return err }
+	return err
+}
+
+func GetDiff(enabledMD5 bool, src Index) (*Updates, error) {
+	files, err := getFiles()
 	dst, err := getIndex(files, enabledMD5)
 		if err != nil { return nil, err }
 

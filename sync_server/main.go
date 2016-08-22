@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"sync"
 	"time"
 	"srcsync/common"
@@ -36,6 +37,7 @@ func main() {
 	rand.Seed(time.Now().Unix())
 	http.HandleFunc("/diff", handleDiff)
 	http.HandleFunc("/update", handleUpdate)
+	http.HandleFunc("/stacks", handleStacks)
 	log.Print("Listening: ", flag.Arg(0))
 	log.Fatal(http.ListenAndServe(flag.Arg(0), nil))
 }
@@ -54,7 +56,14 @@ func handleDiff(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	log.Print("Comparing local path: ", req.ServerPath)
-	updates,err = common.GetDiff(req.ServerPath, req.MD5, req.Index)
+	err = common.MkdirAndChdir(req.ServerPath)
+		if err != nil {
+			log.Print(err)
+			http.Error(w, err.Error(),
+				http.StatusInternalServerError)
+			return
+		}
+	updates,err = common.GetDiff(req.MD5, req.Index)
 		if err != nil {
 			log.Print(err)
 			http.Error(w, err.Error(),
@@ -111,12 +120,22 @@ func handleUpdate(w http.ResponseWriter, r *http.Request) {
 	for _,filename := range updates.Del {
 		err := os.Remove(filename)
 			if err != nil { panic(err) }
-		log.Print(filename, "deleted.")
+		log.Print(filename, " deleted.")
 	}
 
 	log.Print("done")
 	err := json.NewEncoder(w).Encode(&common.UpdateResponse{true})
 	if err != nil { log.Print(err) }
+}
+
+func handleStacks(w http.ResponseWriter, r *http.Request) {
+	if !commonCheck(w, r) {
+		return
+	}
+
+	buf := make([]byte, 1<<20)
+	n := runtime.Stack(buf, true)
+	w.Write(buf[0:n])
 }
 
 func commonCheck(w http.ResponseWriter, r *http.Request) bool {
